@@ -1,374 +1,104 @@
 #*****************************************************************************
 #       Copyright (C) 2013 Thierry Coulbois <thierry.coulbois@univ-amu.fr>
-# 
-#  Distributed under the terms of the GNU General Public License (GPL) 
-#                  http://www.gnu.org/licenses/ 
-#***************************************************************************** 
+#
+#  Distributed under the terms of the GNU General Public License (GPL)
+#                  http://www.gnu.org/licenses/
+#*****************************************************************************
 
-class AlphabetWithInverses():
-    """
-    Class for alphabet with inverse letters.
-    
-    Intended to be used by FreeGroup.  Builds a finite ordered
-    alphabet with an inverse for each letter. There must be no
-    duplicate. Inverse letters are either given or assumed to be
-    capitalized letters.
+from sage.combinat.words.alphabet import build_alphabet
+
+def build_alphabet_with_inverses(data, neg=None, names=None, name=None):
+    r"""
+    Build two disjoint alphabets (i.e. sets) and a bijection between them from the given
+    data.
+
+    This is mainly used to build free groups.
 
     EXAMPLES::
-    
-        sage: AlphabetWithInverse(['a','b','c'],['A','B','C'])
-        Alphabet with inverse on ['a', 'b', 'c']
 
-        sage: AlphabetWithInverse(['a','b','c'])
-        Alphabet with inverse on ['a', 'b', 'c']
+        sage: build_alphabet_with_inverses('abc')
+        ({'a', 'b', 'c'}, {'A', 'B', 'C'})
 
-        sage: AlphabetWithInverse(3)
-        Alphabet with inverse on ['a', 'b', 'c']
+    TODO:
 
-        sage: AlphabetWithInverses(3,type='x0')
-        Alphabet with inverse on ['x0', 'x1', 'x2']
-
-    AUTHORS: 
- 
-    - Thierry Coulbois (2013-05-16): beta.0 version 
-	 
+    Fix conventions in order to fit with build_alphabet in
+    sage.combinat.words.alphabet
     """
+    pos = build_alphabet(data)
 
-    def __init__(self,alphabet,inverse=None,type='abc'):
-        """
-        Builds a finite ordered alphabet with an inverse for each
-        letter. There must be no duplicate. Inverse letters are either
-        given or computed by capitalization.
-
-        The alphabet can also be specified by the number of letters
-        and its type (default is 'abc'). `
-
-        INPUT:
-        
-        `type`` can be: 
-
-        - 'abc' to get an alphabet abc... and inverses ABC...
-
-        - 'x0' to get an alphabet x0, x1,... and inverses X0, X1,...
-
-        - 'a0' to get an alphabet a0, a1,... and inverses A0, A1,...
-
-        EXAMPLES::
-        
-        sage: AlphabetWithInverses(['a','b','c'],['A','B','C'])
-        Alphabet with inverses on ['a', 'b', 'c']
-
-        sage: AlphabetWithInverses(4,'abc')
-        Alphabet with inverses on ['a', 'b', 'c', 'd']
-
-        sage: AlphabetWithInverses(4,'x0')
-        Alphabet with inverses on ['x0', 'x1', 'x2', 'x3']
-
-
-        TESTS::
-
-        sage: A = AlphabetWithInverses(['a','b'])
-        sage: A == loads(dumps(A))
-        True
-
-        """
-        if isinstance(alphabet,(int,Integer)):
-            if type=='abc':
-                if alphabet<27:
-                    self._positive=["%c" % (i+97) for i in xrange(alphabet)]
-                    self._negative=["%c" % (i+65) for i in xrange(alphabet)]
-                else:
-                    self._positive=["%c" % (i+97) for i in xrange(26)]+["x%s" % i for i in xrange(alphabet-26)]
-                    self._negative=["%c" % (i+65) for i in xrange(26)]+["X%s" % i for i in xrange(alphabet-26)]
-                    
-            elif type=='a0':
-                self._positive=["a%s" % i for i in xrange(alphabet)]
-                self._negative=["A%s" % i for i in xrange(alphabet)]
-            elif type=='num' and alphabet<10:
-                self._positive=["%s" % i for i in xrange(alphabet)]
-                self._negative=["%s" % i for i in xrange(alphabet)]
-            else: #type is assumed to be 'x0'
-                self._positive=["x%s" % i for i in xrange(alphabet)]
-                self._negative=["X%s" % i for i in xrange(alphabet)]
-                
-
-        else: 
-            self._positive = list(alphabet)
-            if inverse is not None:
-                self._negative = list(inverse)
-            else:
-                self._negative = [a.upper() for a in self._positive]
-
-        self._inverse = {}
-        self._inverse.update((self._negative[i],self._positive[i]) for i in xrange(len(self._positive)))
-        self._inverse.update((self._positive[i],self._negative[i]) for i in xrange(len(self._negative)))
-        self._type=type
-
-    def __repr__(self):
-        """
-        String representation of self.
-        """
-        return "Alphabet with inverses on %s" %str(self._positive)
-
-    def __iter__(self):
-        """
-        Iterator through the letters of the alphabet.
-
-        WARNING:
-
-        The iterator is on all the letters of the alphabet (both
-        positive and negative). This is NOT consistent with ```len()``.
-        """
-        return iter(self._positive + self._negative)
-        #return iter(self._positive)
-
-    def copy(self):
-        """
-        A copy of self.
-        """
-        return AlphabetWithInverses(self.positive_letters()[:],self.negative_letters()[:],self._type)
-
-        
-
-    def cardinality(self):
-        """
-        The cardinality of the positive letters.
-
-        WARNING:
-
-        This is equal to ``len()`.
-        """
-        return len(self._positive)
-
-    def __contains__(self,letter):
-        """
-        Test whether the letter is contained in self
-        """
-        return letter in self._positive or letter in self._negative
-            
-    def __len__(self):
-        return len(self._positive)
-
-    def rank(self,letter):
-        """
-        Return the rank of the letter
-
-        from 0 to card(self)-1: positive letters
-        from card(self) to 2card(self)-1: negative letters
-        """
-        if letter in self._positive:
-            return self._positive.index(letter)
+    if neg is None:
+        from sage.combinat.words.alphabet import set_of_letters
+        if all(letter in set_of_letters['lower'] for letter in pos):
+            neg = build_alphabet(''.join(pos).upper())
+        elif all(letter in set_of_letters['upper'] for letter in pos):
+            pos = build_alphabet(''.join(neg).lower())
         else:
-            return self.cardinality()+self._negative.index(letter)
+            raise ValueError("not able to determine default inverse letters")
+    else:
+        neg = build_alphabet(neg)
+        assert pos.cardinality() == neg.cardinality()
+        for letter in pos:
+            if letter in neg:
+                raise ValueError("letter %s is both positive and negative"%letter)
+        for letter in neg:
+            if letter in pos:
+                raise ValueError("letter %s is both positive and negative"%letter)
 
-    def __getitem__(self,n):
-        """
-        Return the letter with rank n.
+    return pos, neg
 
-        from 0 to card(self)-1: positive letters
-        from card(self) to 2card(self)-1: negative letters
-        """
-        if n < self.cardinality():
-            return self._positive[n]
-        else:
-            return self._negative[n-self.cardinality()]
+def extension_alpha(pos, neg, n=1):
+    r"""
+    Return ``n`` letters to append to the free group with positive letters
+    ``pos`` and negative letters ``neg``.
 
-    def inverse_letter(self,letter): 
-       """
-       Inverse of ``letter``.
-       """
-       return self._inverse[letter]
+    The function test the letters 'a', 'b', ... with inverses 'A', 'B', ...
+    """
+    i = 0
+    pos_to_add = []
+    neg_to_add = []
+    while i<26 and len(pos_to_add) < n:
+        c = chr(97 + i)
+        cc = chr(65+i)
+        if not c not in pos and cc not in neg:
+            pos_to_add.append(c)
+            neg_to_add.append(cc)
+        i += 1
+    if i == 26 and len(pos_to_add) != n:
+        raise ValueError("no further possible extension")
+    return pos_to_add, neg_to_add
 
-    def are_inverse(self,a,b):
-        """
-        Test if the two letters are inverse of each other.
-        """
-        return self._inverse[a] == b
+def extension_num(A, n=1, *args):
+    r"""
+    Return ``n`` letters to append to the alphabet ``A``.
 
-    def is_positive_letter(self,letter):
-        """
-        Test if the letter is a positive letter.
-        """
-        return letter in self._positive
+    EXAMPLES::
 
-    def is_negative_letter(self,letter):
-        """
-        Test if the letter is a negative letter.
-        """
-        return letter in self._negative
-
-    def to_positive_letter(self,letter):
-        """
-        Given letter a or a^-1 returns a.
-        
-        EXAMPLES::
-
-            sage: A = AlphabetWithInverse(['a','b','c'],['A','B','C'])
-            sage: A.to_positive_letter('b')
-            'b'
-            sage: A.to_positive_letter('B')
-            'b'
-        """
-        if letter in self._positive:
-            return letter
-        elif letter in self._negative:
-            return self._inverse[letter]
-        else:
-           raise ValueError, "The letter %s is not in the alphabet %s" %(str(letter),str(self))
-       
-    def positive_letters(self):
-        """
-        The list of positive letters of this alphabet.
-        """
-        return self._positive
+        sage: A = AlphabetWithInverses('abc','ABC')
+        sage: extension_num(A, n=3)
+        sage: extension_num(A, n=3, 'b')
+        sage: extension_num(A, n=3, 'c', 'Y')
+    """
+    i = 0
+    pos = []
+    neg = []
     
-    def negative_letters(self):
-        """
-        The list of negative letters
-        """
-        return self._negative
+    if len(args) == 0:
+        letter = 'a'
+        LETTER = 'A'
+    elif len(args) == 1:
+        letter = args[0]
+        LETTER = chr(ord(args[0])-32)
+    elif len(args) == 2:
+        letter = args[0]
+        LETTER = args[1]
+    else:
+        raise ValueError("args should have length at most 2")
 
-    def less_letter(self,a,b): 
-        """
-        ``True`` if ``a`` is before ``b`` in the alphabet.
-        """
-        return (self.rank(a)<=self.rank(b))
-    
-    def random_letter(self,exclude=[]):
-        """
-        A random letter, different from the letters in ``exclude``.
-        """
-        done=False
-        while not done:
-            j=randint(0,2*len(self)-1)
-            a=self[j]
-            done=a not in exclude
-        return a
-        
-    def _new_letter(self):
-        """
-        A pair [positive_letter, negative_letter] not already in the
-        alphabet.
-
-        The new_letter is constructed from the type of the
-        alphabet. If the type is 'abc' and all 26 ASCII letters are
-        used, looks for ['a0','A0'] etc.
-        """
-        i=0
-        done=False
-
-        if self._type=='abc':
-            while i<26 and not done:
-                e="%c"%(i+97)
-                if e not in self.positive_letters():
-                    done=True
-                    result=[e,"%c"%(i+65)]
-                i+=1
-        elif self._type=='x0':
-            i=0
-            done=False
-            while not done:
-                e="x%s"%i
-                if e not in self.positive_letters():
-                    done=True
-                    result=[e,"X%i"%i]
-                i+=1
-        i=0
-        while not done:
-            e="a%s"%i
-            if e not in self.positive_letters():
-                done=True
-                result=[e,"A%i"%i]
-            i+=1
-
-
-        return result
-
-    def _new_letters(self,n=1):
-        """
-        A list of length ``n`` of pairs [positve_letter, negative_letter]
-        not already in the alphabet.  
-
-        The new_letters are constructed from the type of the
-        alphabet. If the type is 'abc' and all 26 ASCII letters are
-        used, looks for ['a0','A0'] etc.
-        """
-        i=0
-        result=[]
-
-        if self._type=='abc':
-            while i<26 and n>0:
-                e="%c"%(i+97)
-                if e not in self.positive_letters():
-                    n=n-1
-                    result.append([e,"%c"%(i+65)])
-                i+=1
-        
-        elif self._type=='x0':
-            while n>0:
-                e="x%s"%i
-                if e not in self.positive_letters():
-                    result.append([e,"X%s"%i])
-                    n=n-1
-                i+=1
-        i=0
-        while n>0:
-            e="a%s"%i
-            if e not in self.positive_letters():
-                result.append([e,"A%s"%i])
-                n=n-1
-            i+=1
-            
-     
-        return result
-
-    def add_new_letter(self):
-        """ 
-        Adds a new letter to the alphabet.
-        
-        OUTPUT:
-
-        The pair[positive_letter,negative_letter].
-        """
-        new_letter=self._new_letter()
-        self._positive.append(new_letter[0])
-        self._negative.append(new_letter[1])
-        self._inverse[new_letter[0]]=new_letter[1]
-        self._inverse[new_letter[1]]=new_letter[0]
-        return new_letter
-
-
-    def add_new_letters(self,n=1):
-        """ 
-        Adds ``n`` new letters to the alphabet.
-        
-        OUTPUT:
-        
-        The list of [positive_letter,negative_letter] of new letters.
-        """
-        new_letters=self._new_letters(n)
-        self._positive+=[a[0] for a in new_letters]
-        self._negative+=[a[1] for a in new_letters]
-        self._inverse.update((a[0],a[1]) for a in new_letters)
-        self._inverse.update((a[1],a[0]) for a in new_letters)
-        return new_letters
-        
-    def remove_letter(self,a):
-        """
-        Remove the letter a (and its inverse) from the alphabet.
-
-        EXAMPLES::
-        
-            sage: A=AlphabetWithInverses(4)
-            sage: A.remove_letter('b')
-            sage: print A
-            Alphabet with inverses on ['a','c','d']
-
-        """
-        aa=self.to_positive_letter(a)
-        aaa=self.inverse_letter(aa)
-        self._positive.remove(aa)
-        self._negative.remove(aaa)
-        self._inverse.pop(aa)
-        self._inverse.pop(aaa)
+    while len(pos) < n:
+        c = letter + str(i)
+        if not A.is_positive_letter(c):
+            pos.append(c)
+            neg.append(LETTER + str(i))
+        i += 1
+    return pos,neg
 

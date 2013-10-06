@@ -1,134 +1,373 @@
+r"""
+Free group over a finite alphabet.
+"""
+
 #*****************************************************************************
 #       Copyright (C) 2013 Thierry Coulbois <thierry.coulbois@univ-amu.fr>
 # 
 #  Distributed under the terms of the GNU General Public License (GPL) 
 #                  http://www.gnu.org/licenses/ 
 #***************************************************************************** 
-from sage.combinat.words.words import FiniteWords_over_OrderedAlphabet
+from sage.combinat.words.alphabet import build_alphabet
+from sage.structure.unique_representation import UniqueRepresentation
+from sage.structure.parent import Parent
+from sage.groups.group import Group
+from sage.categories.groups import Groups
+from sage.categories.infinite_enumerated_sets import InfiniteEnumeratedSets
+from sage.categories.finite_enumerated_sets import FiniteEnumeratedSets
+from sage.sets.finite_enumerated_set import FiniteEnumeratedSet
 
-class FreeGroup(FiniteWords_over_OrderedAlphabet):
+from inverse_alphabet import build_alphabet_with_inverses
+from free_group_word import FreeGroupWord
+
+class FreeGroup_n(UniqueRepresentation, Parent):
+    r"""
+    The set of words of fixed length in a free group.
+
+    EXAMPLES::
+
+        sage: F = FreeGroup('ab')
+        sage: F0 = F.subset(0)
+        sage: F1 = F.subset(1)
+        sage: F2 = F.subset(2)
+
+        sage: F1.list()
+        [a, b, A, B]
+        sage: F2.list()
+        [aa, ab, aB, ba, bb, bA, Ab, AA, AB, Ba, BA, BB]
+        sage: F3.list()
+        [aaa,
+         aab,
+         aaB,
+         aba,
+         abb,
+         abA,
+         aBa,
+         ...
+         BBB]
+
+    Standard operations with finite enumerated sets can be performed::
+
+        sage: F3.rank(F('aBa'))
+        6
+        sage: F3.unrank(6)
+        aBa
+        sage: F3.last()
+        BBB
+    """
+    def __init__(self, free_group, n):
+        r"""
+        INPUT:
+
+        - ``free_group`` - a free group
+
+        - ``n`` - a non negative integer
+
+        TESTS::
+
+            sage: TestSuite(FreeGroup('ab').subset(0)).run()
+            sage: TestSuite(FreeGroup('abc').subset(4)).run()
+        """
+        Parent.__init__(self, facade=free_group, category=FiniteEnumeratedSets())
+        self._free_group = free_group
+        self._n = n
+
+    def an_element(self):
+        alphabet = self._free_group.alphabet()
+        if not alphabet:
+            from sage.categories.sets_cat import EmptySetError
+            raise EmptySetError
+        return self._free_group([alphabet.an_element()] * self._n, check=False)
+
+    def first(self):
+        if not alphabet:
+            from sage.categories.sets_cat import EmptySetError
+            raise EmptySetError
+        return self._free_group([alphabet.first()] * self._n, check=False)
+
+    def last(self):
+        if not alphabet:
+            from sage.categories.sets_cat import EmptySetError
+            raise EmptySetError
+        return self._free_group([alphabet.last()] * self._n, check=False)
+
+    def cardinality(self):
+        r"""
+        Return the cardinality of self.
+        """
+        if self._n == 0:
+            return 1
+
+        d = self._free_group.alphabet().cardinality()
+        if self._n == 1:
+            return d
+        return d * (d-1)**(self._n-1)
+
+    def random_element(self):
+        r"""
+        Return a random element in self.
+
+        EXAMPLES::
+
+            sage: F = FreeGroup(3)
+            sage: F.subset(3).random_element()  # random
+            aBa
+        """
+        if self._n == 0:
+            return self._free_group.one()
+
+        alphabet = self._free_group.alphabet().list()
+        D = len(alphabet)
+        d = D/2
+        from sage.misc.prandom import randint
+        j = randint(0,D-1)
+        data = [alphabet[j]]
+        
+        while len(data) != self._n:
+            if j < d:
+                i = j + d
+            else:
+                i = j - d
+            j = randint(0,D-2)
+            if j >= i:
+                j += 1
+            data.append(alphabet[j])
+        
+        return self(data, check=False)
+
+    def _repr_(self):
+        r"""
+        String representation.
+
+        TESTS::
+
+            sage: FreeGroup('abc').subset(5)
+            Words of length 5 in Free group over {a, b, c}
+        """
+        return "Words of length %s in %s"%(self._n,self._free_group)
+
+    def _element_constructor_(self, data, check=True):
+        r"""
+        TESTS::
+
+            sage: F = FreeGroup('abc')
+            sage: G = F.subset(4)
+            sage: G('abaa')
+            abaa
+            sage: G('Aa')
+            Traceback (most recent call last):
+            ...
+            ValueError: can not build a word of length 4 from given data
+        """
+        w = self._free_group(data,check)
+        if check:
+            if len(w) != self._n:
+                raise ValueError("can not build a word of length %s from given data"%self._n)
+        return w
+
+    def __iter__(self):
+        r"""
+        Lexicographic iterator.
+        """
+        F = self._free_group
+        n = self._n
+
+        if n == 0:
+            yield F.one()
+            return
+
+
+        alphabet = F.alphabet().list()
+        D = len(alphabet)
+        d = len(alphabet) / 2
+        last_pos = alphabet[d]
+
+        data = []
+        int_word = [] # the next letter to append for lex order
+        i = -1
+        while True:
+            if i == d and len(data) != n:
+                data.append(alphabet[1])
+                int_word.append(2)
+            while len(data) != n:
+                data.append(alphabet[0])
+                int_word.append(1)
+
+            yield F(data[:], check=False)
+
+            i = int_word.pop()
+            while int_word and (i == D or (i == D-1 and int_word and int_word[-1] == d)):
+                data.pop()
+                i = int_word.pop()
+
+            if int_word:
+                if int_word[-1] + d - 1 == i or int_word[-1] - d - 1 == i:
+                    i += 1
+            elif i == D:
+                return
+            data[-1] = alphabet[i]
+            int_word.append(i+1)
+
+class FreeGroup(UniqueRepresentation, Group):
     """
     Free group of finite rank.
 
     EXAMPLES::
 
-    sage: A=AlphabetWithInverses(['a','b'])
-    sage: FreeGroup(A)
-    Free group over ['a', 'b']
+        sage: A=AlphabetWithInverses(['a','b'])
+        sage: FreeGroup(A)
+        Free group over ['a', 'b']
 
-    sage: FreeGroup(3)
-    Free group over ['a', 'b', 'c']
+        sage: FreeGroup(3)
+        Free group over ['a', 'b', 'c']
 
-    sage: A=AlphabetWithInverses(2,type='x0')
-    sage: FreeGroup(A)
-    Free group over ['x0', 'x1']
+        sage: A=AlphabetWithInverses(2,type='x0')
+        sage: FreeGroup(A)
+        Free group over ['x0', 'x1']
 
     AUTHORS: 
  
-    - Thierry Coulbois (2013-05-16): beta.0 version 
-	 
-
-
+        - Thierry Coulbois (2013-05-16): beta.0 version 
     """
-    
-    def __init__(self,alphabet):
-        if not isinstance(alphabet,AlphabetWithInverses):
-            alphabet=AlphabetWithInverses(alphabet)
-        FiniteWords_over_OrderedAlphabet.__init__(self,alphabet)
+    Element = FreeGroupWord
 
-    def __repr__(self):
+    @staticmethod
+    def __classcall__(cls, pos, neg=None):
+        pos, neg = build_alphabet_with_inverses(pos, neg)
+        return super(FreeGroup, cls).__classcall__(cls, pos, neg)
+
+    def __init__(self, pos, neg=None):
+        r"""
+        INPUT:
+
+        - ``pos`` - the alphabet of positive letters
+
+        - ``neg`` - the alphabet of negative letters
+
+        - ``bij`` - bijection between positive and negative letters
+        """
+        Group.__init__(self, category=(Groups(),InfiniteEnumeratedSets()))
+        self._pos = pos
+        self._neg = neg
+
+        self._invert = {}
+        self._invert.update(zip(pos,neg))
+        self._invert.update(zip(neg,pos))
+        self._alphabet = build_alphabet(pos.list() + neg.list())
+        
+    def gens(self):
+        r"""
+        Return the canonical generating set for this free group.
+        """
+        return tuple(self([letter],check=False) for letter in self.positive_letters())
+
+    def __iter__(self):
+        r"""
+        TESTS::
+
+            sage: it = iter(FreeGroup('ab'))
+            sage: [it.next() for _ in xrange(25)]
+            [THE_EMPTY_WORD,
+             a,
+             b,
+             A,
+             B,
+             aa,
+             ...
+             aBa,
+             aBA]
+             sage: it.next()
+             aBB
+        """
+        n = 0
+        while True:
+            for w in self.subset(n): yield w
+            n += 1
+
+    def inverse_letter(self, a):
+        r"""
+        Return the inverse of the letter ``a`` or raise a ValueError.
+        """
+        try:
+            return self._invert[a]
+        except StandardError:
+            raise ValueError("the letter %s is not in the alphabet"%a)
+
+    def one(self):
+        r"""
+        Return the identity element in self.
+        """
+        return self([])
+
+    empty_word = one
+
+    def alphabet(self):
+        r"""
+        Return the set of words of length 1.
+
+        EXAMPLES::
+
+            sage: F = FreeGroup('abc')
+            sage: F.alphabet()
+            {'a', 'b', 'c', 'A', 'B', 'C'}
+        """
+        return self._alphabet
+
+    def positive_letters(self):
+        r"""
+        Return the set of positive letters
+
+        EXAMPLES::
+
+            sage: F = FreeGroup('abc')
+            sage: F.positive_letters()
+            {'a', 'b', 'c'}
+        """
+        return self._pos
+
+    def subset(self, n):
+        r"""
+        Return the set of elements of given length.
+
+        EXAMPLES::
+
+            sage: F = FreeGroup('ab')
+            sage: F.subset(2)
+            Words of length 4 in Free group over {'a', 'b'}
+        """
+        try:
+            n = n.__index__()
+        except StandardError:
+            raise TypeError("n should be integer")
+        return FreeGroup_n(self, n)
+
+    def negative_letters(self):
+        r"""
+        Return the set of negative letters
+
+        EXAMPLES::
+
+            sage: F = FreeGroup('abc')
+            sage: F.negative_letters()
+            {'A', 'B', 'C'}
+        """
+
+    def _repr_(self):
         """
         String representation for free group
         """
-        return "Free group over %s" %str(self._alphabet.positive_letters())
+        return "Free group over %s" %str(self.positive_letters())
 
-    def __call__(self,data=None, length=None, datatype=None, caching=True, **kwds):
-        if data==None: data=[]
-        return FreeGroupWord(self,data)
-
-    def reduced_product(self,u,v):
-        """
-        Returns the reduced product of u and v assuming that u and v
-        are reduced.
-
-        EXAMPLES::
-
-        sage: FreeGroup(3).reduced_product("abAc","Caa")
-        word: aba
-
-        """
-        i=0
-        while (i<len(u) and i<len(v) and self._alphabet.are_inverse(u[-i-1],v[i])):
-            i=i+1
-        return self(u[:len(u)-i]+v[i:])
-        
-
-        
-    def is_reduced(self,word):
-        """
-        Tests if the word is reduced.
-        
-        EXAMPLES::
-        
-        sage: A= AlphabetWithInverses(['a','b','c'])
-        sage: F= FreeGroup(A)
-        sage: w="abcAab"
-        sage: print F.is_reduced(w)
-        False
-
-        """
-        return not any(self._alphabet.are_inverse(word[i],word[i+1]) for i in xrange(len(word)-1))
-        
-    def reduce(self,word):
-        """
-        Reduced form of ``word``.
-        
-        EXAMPLES::
-        
-        sage: F=FreeGroup(['a','b','c'])
-        sage: w="abcAab"
-        sage: print w," = ",F.reduce(w)
-        abcAab = abcb
-
-        """
-
-        result = list(word)
-        
-        i=0
-        j=1
-        long=len(result)
-        while (j<long):
-            k=0
-            while i-k>=0 and j+k<long and self._alphabet.are_inverse(result[i-k],result[j+k]): k=k+1
-            i=i-k+1
-            j=j+k+1
-            if j-1<long:
-                result[i]=result[j-1]
-            else:
-                i=i-1
-        return self(result[0:i+1])
-        
-    def inverse_word(self,w):
-        """
-        Inverse of ``w``.
-        
-        EXAMPLES::
-            
-            sage: A = AlphabetWithInverse(['a','b','c'],['A','B','C'])
-            sage: F=FreeGroup(A)
-            sage: F.inverse('aBc')
-            word: CbA
-        
-        """
-        return self([self._alphabet.inverse_letter(a) for a in reversed(w)])
-
-
-    def is_identity(self,w):
+    def _element_constructor_(self, data=None, check=True):
         r"""
-        Tests whether the argument is trivial.
+        Build an element of the free group,
+
+        If ``check`` is True, then check that the validity of letters and that
+        the word is reduced.
         """
-        return len(self.reduce(w)) == 0
-    
+        if data is None:
+            data=[]
+        return self.element_class(self, data, check)
 
     def less(self,u,v):
         """ 
@@ -194,22 +433,6 @@ class FreeGroup(FiniteWords_over_OrderedAlphabet):
         else:
             return False
 
-
-    def equal_words(self,worda,wordb):
-        """
-        True if ``worda``and ``wordb``are equal.
-
-        WARNING:
-        
-        ``worda`` and ``wordb``are assumed to be reduced. 
-        """
-        result= (len(worda)==len(wordb))
-        i=0
-        while(result and i<len(worda)):
-            result=result and (worda[i]==wordb[i])
-            i=i+1
-        return result
-
     def nielsen_strictly_less(self,u,v):
         """
         Determines wether ``u`` is strcitly before ``v`` in the Nielsen order
@@ -258,7 +481,7 @@ class FreeGroup(FiniteWords_over_OrderedAlphabet):
         """
         Identity automorphism of ``self``.
         """
-        morph=dict((a,self([a])) for a in self._alphabet.positive_letters())
+        morph=dict((a,self([a])) for a in self.positive_letters())
         return FreeGroupAutomorphism(morph,group=self)
 
     def dehn_twist(self,a,b,on_left=False):
@@ -290,7 +513,7 @@ class FreeGroup(FiniteWords_over_OrderedAlphabet):
         if A.are_inverse(a,b):
             raise ValueError, "Letter a=%s should be different from the inverse of b=%s" %(str(a),str(b))
 
-        morphism = dict((letter,self([letter])) for letter in A.positive_letters())
+        morphism = dict((letter,self([letter])) for letter in self.positive_letters())
 
         if A.is_positive_letter(a):
             if on_left:
