@@ -68,6 +68,48 @@ class FreeGroupWord(MonoidElement):
             if letter not in A:
                 raise ValueError("the letter %s is not in the alphabet"%letter)
         
+    def __iter__(self):
+        r"""
+        Iterator over the letters of ``self``.
+
+        TESTS::
+
+            sage: F = FreeGroup('ab')
+            sage: it = iter(F('abA'))
+            sage: it.next()
+            'a'
+            sage: it.next()
+            'b'
+            sage: it.next()
+            'A'
+            sage: it.next()
+            Traceback (most recent call last):
+            ...
+            StopIteration:
+        """
+        return iter(self._data)
+
+    def __reversed__(self):
+        r"""
+        Reversed iterator over the letters of ``self``.
+
+        TESTS::
+
+            sage: F = FreeGroup('ab')
+            sage: it = reversed(F('abA'))
+            sage: it.next()
+            'A'
+            sage: it.next()
+            'b'
+            sage: it.next()
+            'a'
+            sage: it.next()
+            Traceback (most recent call last):
+            ...
+            StopIteration:
+        """
+        return reversed(self._data)
+
     def __eq__(self, other):
         r"""
         Equality test.
@@ -136,9 +178,9 @@ class FreeGroupWord(MonoidElement):
                 raise ValueError("step can only be 1 or -1")
             start,stop,step = i.indices(n)
             # there is a python bug which prevents from doing l[start:stop:ste]
-            #  sage: l = [1,2,3]
-            #  sage: l[1:-1:-1]
-            #  []
+            #    sage: l = [1,2,3]
+            #    sage: l[1:-1:-1]
+            #    []
             return self.parent()(self._data[i])
 
         try:
@@ -162,19 +204,19 @@ class FreeGroupWord(MonoidElement):
         data = self._data
         f = self.parent().inverse_letter
         
-        i=0
-        j=1
-        length=len(data)
-        while(j<length):
-            k=0
-            while i-k>=0 and j+k<length and f(data[i-k]) == data[j+k]:
+        i = 0
+        j = 1
+        length = len(data)
+        while j < length:
+            k = 0
+            while i-k >= 0 and j+k < length and f(data[i-k]) == data[j+k]:
                 k = k+1
-            i=i-k+1
-            j=j+k+1
-            if j-1<length:
+            i = i-k+1
+            j = j+k+1
+            if j-1 < length:
                 data[i] = data[j-1]
             else:
-                i=i-1
+                i = i-1
         del data[i+1:]
 
     def _repr_(self):
@@ -233,3 +275,116 @@ class FreeGroupWord(MonoidElement):
         """
         F = self.parent()
         return F(map(F.inverse_letter, reversed(self._data)))
+
+    def common_prefix_length(self, other):
+        """
+        Return the length of the longest common prefix of ``self`` and
+        ``other``.
+
+        EXAMPLES::
+        
+            sage: F = FreeGroup('abc')
+            sage: u = F('aBaa')
+            sage: v = F('aBcb')
+            sage: u.common_prefix_length(v)
+            2
+        """
+        k=0
+        while k<len(u) and k<len(v) and u[k]==v[k]:
+            k=k+1
+        return k
+
+    def is_prefix(self, other):
+        """
+        Test if ``self`` is a prefix of ``other``.
+
+        EXAMPLES::
+        
+            sage: F = FreeGroup('abc')
+            sage: u = F("aBaa")
+            sage: v = F("aBcb")
+            sage: w = F("aBa")
+            sage: u.is_prefix(v) or u.is_prefix(w)
+            False
+            sage: v.is_prefix(u) or v.is_prefix(w)
+            False
+            sage: w.is_prefix(u)
+            True
+            sage: u.is_prefix(u) and v.is_prefix(v) and w.is_prefix(w)
+            True
+        """
+        if len(other) < len(self):
+            return False
+        i = 0
+        while i < len(self) and self[i] == other[i]:
+            i += 1
+        return i == len(self)
+
+    def has_prefix(self, other):
+        r"""
+        Test if ``self`` has ``other`` as prefix.
+
+        EXAMPLES::
+
+            sage: F = FreeGroup('abc')
+            sage: u = F("aBaa")
+            sage: v = F("aBcb")
+            sage: w = F("aBa")
+            sage: v.has_prefix(u) or w.has_prefix(u)
+            False
+            sage: u.has_prefix(v) or w.has_prefix(v)
+            False
+            sage: u.has_prefix(w)
+            True
+            sage: u.has_prefix(u) and v.has_prefix(v) and w.has_prefix(w)
+            True
+        """
+        if len(self) < len(other):
+            return False
+        i = 0
+        while i < len(other) and self[i] == other[i]:
+            i += 1
+        return i == len(other)
+
+    #TODO: check with Thierry that it does what it should
+    def nielsen_lesser_than(self,other):
+        """
+        Determines wether ``self`` is strcitly before ``other`` in the Nielsen
+        order used in the Nielsen reduction algorithm.
+
+        OUTPUT:
+        
+        - ``len(v)-len(u)`` if it is >0, 
+
+        - ``0`` if they have the same length, but ``u``<``v`` in the
+          Nielsen order
+
+        - ``-1`` if ``v=<u`` in the Nielsen order
+
+        Recall that u<v iff 
+           len(u)<len(v)  or 
+             (  len(u) == len(v)  and 
+                ( u = u'u'', v=v'v'' u'<_lex v' 
+                 or 
+                (u'=v' and u''<_lex v'')).
+        """
+        l = len(self)
+        result = len(other)-l
+        if result == 0:
+            if l == 0: 
+                return -1
+            else:
+                if l%2 == 1:
+                    half = (l+1)/2
+                else:
+                    half = l/2
+                u = self[0:half]
+                v = other[0:half]
+                if v < u:
+                    return -1
+                elif u == v:
+                    uu = self[l-half:l] #TODO: do not we have to compare self.inverse(uuu) and self.inverse(vvv) instead ?
+                    vv = self[l-half:l]
+                    if self[l-half:l] <= self[l-half:l]:
+                        return -1
+        return result
