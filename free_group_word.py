@@ -117,6 +117,9 @@ class FreeGroupWord(MonoidElement):
         return isinstance(other, FreeGroupWord) and self.parent() is other.parent() and self._data == other._data
 
     def __ne__(self, other):
+        r"""
+        Difference test.
+        """
         return not self.__eq__(other)
 
     def __cmp__(self, other):
@@ -124,8 +127,33 @@ class FreeGroupWord(MonoidElement):
             raise TypeError("can not compare words on different free groups")
         return cmp(self._data, other._data)
 
+    def __nonzero__(self):
+        r"""
+        Test whether the word is empty or not
+
+        EXAMPLES::
+
+            sage: F = FreeGroup('ab')
+            sage: bool(F(''))
+            False
+            sage: bool(F('a'))
+            True
+        """
+        return bool(self._data)
+
     def is_one(self):
-        return not bool(self._data)
+        r"""
+        Test whether this word is the identity.
+
+        EXAMPLES::
+
+            sage: F = FreeGroup('ab')
+            sage: F('').is_one()
+            True
+            sage: F('a').is_one()
+            False
+        """
+        return not self._data
 
     def __len__(self):
         r"""
@@ -155,6 +183,7 @@ class FreeGroupWord(MonoidElement):
             sage: type(w.length())
             <type 'sage.rings.integer.Integer'>
         """
+        from sage.rings.integer import Integer
         return Integer(len(self))
 
     def __getitem__(self, i):
@@ -170,10 +199,16 @@ class FreeGroupWord(MonoidElement):
             sage: w[1:5]
             bAAb
             sage: w[::-1]
-            THE_EMPTY_WORD
+            AbaBBBaabAAba
         """
-        n = len(self._data)
-        if isinstance(i, slice):
+        try:
+            i = i.__index__()
+        except AttributeError:
+            # i should be a slice
+            if not isinstance(i, slice):
+                raise TypeError("word index must be integer or slice")
+
+            n = len(self._data)
             if i.step is not None and i.step != 1 and i.step != -1:
                 raise ValueError("step can only be 1 or -1")
             start,stop,step = i.indices(n)
@@ -182,11 +217,6 @@ class FreeGroupWord(MonoidElement):
             #    sage: l[1:-1:-1]
             #    []
             return self.parent()(self._data[i])
-
-        try:
-            i = i.__index__()
-        except StandardError:
-            raise TypeError("word index must be integer or slice")
 
         return self._data[i]
 
